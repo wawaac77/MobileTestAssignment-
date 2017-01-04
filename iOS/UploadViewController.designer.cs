@@ -23,7 +23,15 @@ namespace MobileTest.iOS
 
         [Outlet]
         [GeneratedCode ("iOS Designer", "1.0")]
+        UIKit.UIBarButtonItem DoneButton { get; set; }
+
+        [Outlet]
+        [GeneratedCode ("iOS Designer", "1.0")]
         UIKit.UIImageView TestImagePlace { get; set; }
+
+        [Outlet]
+        [GeneratedCode ("iOS Designer", "1.0")]
+        UIKit.UITextView textBox { get; set; }
 
         [Action ("Cancel:")]
         [GeneratedCode ("iOS Designer", "1.0")]
@@ -36,6 +44,11 @@ namespace MobileTest.iOS
                 CancelButton = null;
             }
 
+            if (DoneButton != null) {
+                DoneButton.Dispose ();
+                DoneButton = null;
+            }
+
             if (NewImageButton != null) {
                 NewImageButton.Dispose ();
                 NewImageButton = null;
@@ -44,6 +57,11 @@ namespace MobileTest.iOS
             if (TestImagePlace != null) {
                 TestImagePlace.Dispose ();
                 TestImagePlace = null;
+            }
+
+            if (textBox != null) {
+                textBox.Dispose ();
+                textBox = null;
             }
         }
     }

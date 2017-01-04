@@ -44,5 +44,11 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Resources/Images.xcassets/AppIcons.appiconset</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Photo Picker uses photos</string>
+	<key>Custom Property</key>
+	<string></string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo picker uses photos</string>
 </dict>
 </plist>

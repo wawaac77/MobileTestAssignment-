@@ -23,31 +23,13 @@ namespace MobileTest.iOS
 
         [Outlet]
         [GeneratedCode ("iOS Designer", "1.0")]
-        UIKit.UIImageView imageCourse1 { get; set; }
-
-        [Outlet]
-        [GeneratedCode ("iOS Designer", "1.0")]
-        UIKit.UIImageView imageCourse2 { get; set; }
-
-        [Outlet]
-        [GeneratedCode ("iOS Designer", "1.0")]
-        UIKit.UIImageView imageCourse3 { get; set; }
+        UIKit.UITableView TableView { get; set; }
 
         void ReleaseDesignerOutlets ()
         {
-            if (imageCourse1 != null) {
-                imageCourse1.Dispose ();
-                imageCourse1 = null;
-            }
-
-            if (imageCourse2 != null) {
-                imageCourse2.Dispose ();
-                imageCourse2 = null;
-            }
-
-            if (imageCourse3 != null) {
-                imageCourse3.Dispose ();
-                imageCourse3 = null;
+            if (TableView != null) {
+                TableView.Dispose ();
+                TableView = null;
             }
         }
     }

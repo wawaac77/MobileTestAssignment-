@@ -19,8 +19,9 @@ namespace Core
             var timeout = rnd.Next(3000,10000);
             System.Diagnostics.Debug.WriteLine(timeout);
 
-            await Task.Delay(timeout);
-            
+			//var startTime = DateTime.Now;
+			await Task.Delay(timeout);
+
             return item;
 		}
 

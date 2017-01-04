@@ -1,36 +1,46 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Foundation;
-using Media.Plugin;
 using MonoTouch.Dialog;
 using UIKit;
 using Xamarin.Media;
 using Core;
+using CoreGraphics;
+using AssetsLibrary;
+using Photos;
 
 namespace MobileTest.iOS
 {
 	public partial class UploadViewController : UIViewController
 	{
-		private MediaPicker mediaPicker = new MediaPicker();
-		private UIImagePickerController mediaPickerFromLibrary = new UIImagePickerController();
-		private TaskScheduler uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
-		private DisposingMediaViewController dialogController;
+		public UIImage selectedImage;
+		private NSData nsSelectedImage = new NSData();
+		Meal mealSelectedImage; // domain defined image type
 
+		private UIImagePickerController imagePicker = new UIImagePickerController();
 		private UIAlertView alertView;
-		private Xamarin.Media.MediaPickerController mediaPickerController;
+		public UIActivityIndicatorView activitySpinner = new UIActivityIndicatorView();
+
+		public static SavedImage savedImage = new SavedImage();
+
 
 		public UploadViewController (IntPtr handle) : base (handle)
 		{		
 		}
 
 
-		public override void ViewDidLoad ()
+		public override void ViewDidLoad()
 		{
-			base.ViewDidLoad ();
+			base.ViewDidLoad();
 			// Perform any additional setup after loading the view, typically from a nib.
 			CancelButton.Clicked += closeHandler;
+			DoneButton.Clicked += doneHandler;
 			NewImageButton.TouchUpInside += newIamgeHandler;
+		}
 
+		public override void ViewWillAppear(bool animated)
+		{
+			base.ViewWillAppear(animated);
 		}
 
 		public override void DidReceiveMemoryWarning ()
@@ -47,214 +57,165 @@ namespace MobileTest.iOS
 				
 		}
 
-		void newIamgeHandler (object sender, EventArgs args)
+	    void doneHandler (object sender, EventArgs args)
+		{
+			if (sender == DoneButton)
+			{
+				savedImage.AddToList(selectedImage);
+				DismissViewController(true, null);
+			}
+
+		}
+
+		private void newIamgeHandler(object sender, EventArgs args)
 		{
 			// Create a new Alert Controller
 			UIAlertController actionSheetAlert = UIAlertController.Create("New Image", "Select an image from below", UIAlertControllerStyle.ActionSheet);
 
 			// Add Actions
-			actionSheetAlert.AddAction(UIAlertAction.Create("Take Photo",UIAlertActionStyle.Default, (action) => TakePictureFunction()));
+			actionSheetAlert.AddAction(UIAlertAction.Create("Take Photo", UIAlertActionStyle.Default, (action) => TakePictureFunction()));
 
-			actionSheetAlert.AddAction(UIAlertAction.Create("Choose From Library",UIAlertActionStyle.Default, (action) => ChooseFromLibraryFunction()));
+			actionSheetAlert.AddAction(UIAlertAction.Create("Choose From Library", UIAlertActionStyle.Default, (action) => ChooseFromLibraryFunction()));
 
-			actionSheetAlert.AddAction(UIAlertAction.Create("Use Last Photo Taken",UIAlertActionStyle.Default, (action) => Console.WriteLine ("Item Three pressed.")));
+			actionSheetAlert.AddAction(UIAlertAction.Create("Use Last Photo Taken", UIAlertActionStyle.Default, (action) => LastTakenPhotoFunction()));
 
-			actionSheetAlert.AddAction(UIAlertAction.Create("Cancel",UIAlertActionStyle.Cancel, (action) => Console.WriteLine ("Cancel button pressed.")));
+			actionSheetAlert.AddAction(UIAlertAction.Create("Cancel", UIAlertActionStyle.Cancel, (action) => Console.WriteLine("Cancel button pressed.")));
 
 			// Required for iPad - You must specify a source for the Action Sheet since it is
 			// displayed as a popover
 			UIPopoverPresentationController presentationPopover = actionSheetAlert.PopoverPresentationController;
-			if (presentationPopover!=null) {
+			if (presentationPopover != null)
+			{
 				presentationPopover.SourceView = this.View;
 				presentationPopover.PermittedArrowDirections = UIPopoverArrowDirection.Up;
 			}
 
 			// Display the alert
-			this.PresentViewController(actionSheetAlert,true,null);
-
+			this.PresentViewController(actionSheetAlert, true, null);
 		}
 
 		private void TakePictureFunction ()
 		{
 
-			if (!mediaPicker.IsCameraAvailable) 
+			if (!UIImagePickerController.IsSourceTypeAvailable(UIImagePickerControllerSourceType.Camera)) 
 			{
-				alertView = new UIAlertView ("MobileTest" , "Sorry, you cannot take pictures with your device",
+				alertView = new UIAlertView ("SnagR Upload Photos APP" , "Sorry, you cannot take pictures with your device",
 				                             new UIAlertViewDelegate(), "OK");
 				alertView.Show();
-
 				return;
 			}
 
 
-			mediaPickerController = mediaPicker.GetTakePhotoUI(new StoreCameraMediaOptions
-			{
-				Name = "TakePicture.jpg",
-				Directory = "Images"
-			});
+			imagePicker.SourceType = UIImagePickerControllerSourceType.Camera;
+			imagePicker.CameraDevice = UIImagePickerControllerCameraDevice.Rear;
+			imagePicker.CameraFlashMode = UIImagePickerControllerCameraFlashMode.Auto;
 
-			dialogController.PresentViewController (mediaPickerController, true, null);
+			imagePicker.FinishedPickingMedia += Handle_FinishedPickingMedia;
+			imagePicker.Canceled += Handle_Canceled;
 
-			mediaPickerController.GetResultAsync().ContinueWith (t => 
-			{
-				dialogController.DismissViewController (true, () =>
-				{
-					if (t.IsCanceled || t.IsFaulted) 
-						return;
-
-					MediaFile media = t.Result;
-					ShowTakenPicture (media);
-				});
-			}, uiScheduler);
-
-			//await UploadThroughDomain(media); 
-			//I don't know how to use "UploadThroughDomain"
+			this.PresentModalViewController(imagePicker, true);
 		}
+
 
 
 		private void ChooseFromLibraryFunction()
 		{
-			
-			if (!CrossMedia.Current.IsPickPhotoSupported)
+			if (!UIImagePickerController.IsSourceTypeAvailable(UIImagePickerControllerSourceType.PhotoLibrary))
 			{
 				alertView = new UIAlertView("SnagR Upload Photos APP", "Sorry, you cannot select pictures with your device",
 											 new UIAlertViewDelegate(), "OK");
 				alertView.Show();
-
 				return;
 			}
 
+			imagePicker.SourceType = UIImagePickerControllerSourceType.PhotoLibrary;
+			imagePicker.MediaTypes = UIImagePickerController.AvailableMediaTypes(UIImagePickerControllerSourceType.PhotoLibrary);
 
-			mediaPickerFromLibrary.SourceType = UIImagePickerControllerSourceType.PhotoLibrary;
-			mediaPickerFromLibrary.MediaTypes = UIImagePickerController.AvailableMediaTypes(UIImagePickerControllerSourceType.PhotoLibrary);
+			imagePicker.FinishedPickingMedia += Handle_FinishedPickingMedia;
+			imagePicker.Canceled += Handle_Canceled;
 
-			mediaPickerFromLibrary.FinishedPickingMedia += Handle_FinishedPickingMedia;
-			mediaPickerFromLibrary.Canceled += Handle_Canceled;
+			this.PresentModalViewController(imagePicker, true);
+		}
 
-			NavigationController.PresentModalViewController (mediaPickerFromLibrary, true);			
-			/*
-
-			var mediaOptions = new Media.Plugin.Abstractions.StoreCameraMediaOptions
+		private void LastTakenPhotoFunction()
+		{
+			if (!UIImagePickerController.IsSourceTypeAvailable(UIImagePickerControllerSourceType.PhotoLibrary))
 			{
-				Directory = "Images",
-				Name = $"{DateTime.UtcNow}.jpg"
-			};
-
-			var photo = CrossMedia.Current.PickPhotoAsync();
-
-			return;
-			*/
-
-		}
-
-		protected void Handle_FinishedPickingMedia (object sender, UIImagePickerMediaPickedEventArgs e)
-		{
-			bool isImage = false;
-			switch (e.Info[UIImagePickerController.MediaType].ToString()) {
-				case "public.image":
-					Console.WriteLine("Image selected");
-					isImage = true;
-				break;
-					
-				case "public.video":
-					Console.WriteLine("Video selected");
-				break;
+				alertView = new UIAlertView("SnagR Upload Photos APP", "Sorry, you cannot select pictures with your device",
+				                            new UIAlertViewDelegate(), "OK");
+				alertView.Show();
+				return;
 			}
 
-			Console.Write("Reference URL: [" + UIImagePickerController.ReferenceUrl + "]");
+			//imagePicker.SourceType = UIImagePickerControllerSourceType.PhotoLibrary;
+			//ALAssetsLibrary library = new ALAssetsLibrary();
+			PHFetchOptions fetchOptions = new PHFetchOptions();
+			fetchOptions.SortDescriptors = new NSSortDescriptor[] {new NSSortDescriptor("creationDate", false)};
+			PHFetchResult fetchResult = PHAsset.FetchAssets(PHAssetMediaType.Image,fetchOptions);
+			PHAsset lastAsset = (Photos.PHAsset)fetchResult.LastObject;
+			PHImageRequestOptions option = new PHImageRequestOptions();
+			option.ResizeMode = PHImageRequestOptionsResizeMode.Exact;
+			PHImageManager.DefaultManager.RequestImageData(lastAsset, option,(data, dataUti, orientation, info) => nsSelectedImage = data);
 
-			NSUrl referenceURL = e.Info[new NSString("UIImagePickerControllerReferenceUrl")] as NSUrl;
-			if (referenceURL != null) 
-				Console.WriteLine(referenceURL.ToString());
+			//PHImageManager.DefaultManager.RequestImageForAsset(lastAsset, new CGSize(100, 100), PHImageContentMode.AspectFill, options:option,(UIImage result, NSDictionary info) => {selectedImage = result});
+			selectedImage = UIImage.LoadFromData(nsSelectedImage);
+			TestImagePlace.Image = selectedImage;
+			//imagePicker.AssetsLibrary
 
-			if (isImage) {
-				UIImage originalImage = e.Info[UIImagePickerController.OriginalImage] as UIImage;
-				if (originalImage != null) {
-					Console.WriteLine ("got the original image");
-					TestImagePlace.Image = originalImage; // display
-				}
+			UploadProcess();	
+		}
 
-				UIImage editedImage = e.Info[UIImagePickerController.EditedImage] as UIImage;
-				if (editedImage != null)
-				{
-					Console.WriteLine("got the edited image");
-					TestImagePlace.Image = editedImage;
-				}
 
-				NSDictionary imageMetadata = e.Info[UIImagePickerController.MediaMetadata] as NSDictionary;
-				if (imageMetadata != null)
-				{
-					Console.WriteLine("got image metadata");
-				}
-			} else {
-				NSUrl mediaURL = e.Info[UIImagePickerController.MediaURL] as NSUrl;
-				if (mediaURL != null)
-				{
-					Console.WriteLine(mediaURL.ToString());
-				}
+		protected void Handle_FinishedPickingMedia(object sender, UIImagePickerMediaPickedEventArgs e)
+		{
+			var originalImage = e.Info[UIImagePickerController.OriginalImage] as UIImage;
+			TestImagePlace.Image = originalImage; // display
+			selectedImage = originalImage;
+
+			this.imagePicker.DismissModalViewController(true); // where is Animated
+
+			//selectedImage.SaveToPhotosAlbum(null);
+
+			UploadProcess();
+
+		}
+
+		private async void UploadProcess()
+		{
+			activitySpinner = new UIActivityIndicatorView(UIActivityIndicatorViewStyle.WhiteLarge);
+			activitySpinner.Frame = new CGRect(
+				UIScreen.MainScreen.Bounds.Width / 2 - (activitySpinner.Frame.Width / 2),
+				UIScreen.MainScreen.Bounds.Height / 2 - activitySpinner.Frame.Height - 20,
+				activitySpinner.Frame.Width,
+				activitySpinner.Frame.Height);
+			activitySpinner.AutoresizingMask = UIViewAutoresizing.All;
+			View.Add(activitySpinner);
+			activitySpinner.StartAnimating();
+			textBox.Text = "Uploading the selected image... \n";
+
+			//Uploading through Domain
+			Domain domainTask = new Domain();
+			mealSelectedImage = toTypeMeal(selectedImage); // change image type to a domain accpeted type
+			var tempResult = await domainTask.UpdateItem(mealSelectedImage);
+			if (tempResult != null)
+			{
+				activitySpinner.StopAnimating();
+				textBox.Text = "Uploaded! \n";
 			}
-
-			mediaPickerFromLibrary.DismissModalViewController (true); // where is Animated
 		}
 
-		protected void Handle_Canceled (object sender, EventArgs e) 
+		private void Handle_Canceled (object sender, EventArgs e) 
 		{
-			Console.WriteLine("picker cancelled");
-			mediaPickerFromLibrary.DismissModalViewController (true);
+			//Console.WriteLine("picker cancelled");
+			this.imagePicker.DismissModalViewController (true);
 		}
 
-
-		private void ShowTakenPicture (MediaFile media) 
+		private Meal toTypeMeal (UIImage _selectedImage) 
 		{
-			dialogController.Media = media;
-			//ListViewController.imageCourse1.Image = UIImage.FromFile (media.Path);
-			// I don't know how to show the photo in the ListViewController.
+			Meal _mealSelectedImage = new Meal ();
+			_mealSelectedImage.Title = "selected";
+			return _mealSelectedImage;
 		}
-
-
-		//Upload photo through api in domain, with loading information displayed
-		protected PhotoPickerIOSLoadingOverlay loadPop = null;
-		protected Domain domainUpdate = null;
-
-		private async Task<Meal> UploadThroughDomain (MediaFile media)
-		{
-
-			var bounds = UIScreen.MainScreen.Bounds;
-			loadPop = new PhotoPickerIOSLoadingOverlay(bounds);
-
-			View.Add(loadPop); //display the loading information
-			await domainUpdate.UpdateItem((Core.Meal)media); // Upload through api in domain
-			loadPop.Hide(); //cancel the loading reminder
-
-			return (Core.Meal)media;
-		}
-
 	}
 
-
-
-	class DisposingMediaViewController : DialogViewController
-	{
-		public DisposingMediaViewController (RootElement root) : base (root)
-		{
-		}
-
-		public MediaFile Media
-		{
-			get;
-			set;
-		}
-
-		public override void ViewDidAppear (bool animated)
-		{
-			if (Media != null) {
-				Media.Dispose();
-				Media = null;
-			}
-
-			base.ViewDidAppear (animated);
-		}
-	}
 }
-
-
